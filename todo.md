@@ -413,9 +413,10 @@ worked cases.
       scope, targets/guards/result inside), and `match`/`case` (subject + per-case block; patterns
       bind captures and read literal/class/key references). Rust likewise recovers references inside
       expression-list macros (`vec!`/`format!`/…). The catch-alls now drop only ref-less nodes
-      (literals, `pass`/`break`/`continue`; `global`/`nonlocal` are collected separately). Residual:
-      references inside a lambda/comprehension/closure BODY are attributed to that scope, so they
-      aren't in the call graph (captures still narrow) — the one inherent limit of scoped bodies.
+      (literals, `pass`/`break`/`continue`; `global`/`nonlocal` are collected separately). References
+      inside a lambda/comprehension/closure BODY are attributed to the nearest enclosing NAMED
+      definition, so a callee used only inside a closure still gets a placement/order edge (value
+      captures still narrow via `uses`).
 - [x] **Rust frontend (syn)** — `src/lang/rust/{prim,lower,mod}`: `ScopeLang` over syn; block-scoped
       `let`, `impl T` → class scope `T`, `const`/`static` as data, expr-list macro reference recovery.
       `tests/rust_lang.rs`. Dogfooded on its own source AND external projects.

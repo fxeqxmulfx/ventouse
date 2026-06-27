@@ -97,12 +97,27 @@ fn driver_without_attribution_referrer_is_the_scope() {
 
 #[test]
 fn driver_nested_scope_resolves_reference_to_module() {
-    // a reference inside a nested scope resolves up to the module-level definition.
+    // a reference inside a NAMED nested scope (a `def f` = its Decl + its body scope) resolves up to
+    // the module-level definition and is attributed to `f`.
     let out = run(vec![
         N::Decl("g".into(), 1),
+        N::Decl("f".into(), 2),
         N::Scope("f".into(), false, vec![N::Use("g".into(), 3)]),
     ]);
     // referrer is the nested scope `f`; referent the module `g`.
+    assert_eq!(out.edges, [("f".to_string(), "g".to_string())]);
+}
+
+#[test]
+fn driver_anonymous_scope_attributes_to_enclosing_def() {
+    // a reference inside an ANONYMOUS body (an OpenScope with no backing Decl — a lambda/closure)
+    // is attributed to the nearest enclosing NAMED definition (`f`), not to the anonymous scope.
+    // This closes the locality blind spot where a callee used only inside a closure escaped the graph.
+    let out = run(vec![
+        N::Decl("g".into(), 1),
+        N::Decl("f".into(), 2),
+        N::Scope("f".into(), false, vec![N::Scope("<lambda>".into(), false, vec![N::Use("g".into(), 3)])]),
+    ]);
     assert_eq!(out.edges, [("f".to_string(), "g".to_string())]);
 }
 

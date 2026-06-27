@@ -191,6 +191,7 @@ fn module_level_value_is_a_data_definition_not_narrowed() {
     let m = g.new_scope(None, "<module>".into(), true, false, false, vec![]);
     let mb = g.module_block();
     g.bind(m, "CONFIG", BindKind::Value, mb, 1, false, false);
+    g.bind(m, "f", BindKind::Decl, mb, 2, false, false); // a real `def f` binds its name + opens a scope
     let f = g.new_scope(Some(m), "f".into(), false, false, false, vec![]);
     let fb = g.new_block(mb, false);
     g.add_use("CONFIG", f, fb, 3, false, None);
@@ -234,6 +235,7 @@ fn member_reference_is_an_edge_but_not_a_value_use() {
     let c = g.new_scope(Some(m), "C".into(), false, true, false, vec![]);
     let c_entry = g.new_block(mb, false);
     g.bind(c, "attr", BindKind::Value, c_entry, 2, false, false);
+    g.bind(c, "m", BindKind::Decl, c_entry, 3, false, false); // a real method binds its name + opens a scope
     let method = g.new_scope(Some(c), "C.m".into(), false, false, false, vec![]);
     let m_entry = g.new_block(c_entry, false);
     g.add_use("attr", method, m_entry, 4, /*member*/ true, None);

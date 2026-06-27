@@ -317,6 +317,15 @@ fn value_used_only_in_comprehension_narrows_toward_it() {
 }
 
 #[test]
+fn definition_used_only_inside_a_closure_still_gets_a_placement_edge() {
+    // A module helper referenced ONLY inside a lambda body is attributed to the function that holds
+    // the lambda (`make`), so it is placed/ordered against it instead of escaping the call graph
+    // (the former closure blind spot). `make` ends up gap-to-deps from `helper`, 3 defs above.
+    let src = "def helper():\n    return 1\ndef n1(): return 0\ndef n2(): return 0\ndef n3(): return 0\ndef make():\n    return lambda: helper()\n";
+    assert!(misplaced_count(src) >= 1, "a closure-only reference must still produce placement debt");
+}
+
+#[test]
 fn global_augassign_is_pinned() {
     let src = "C = 0\ndef bump():\n    global C\n    C += 1\n";
     assert_eq!(scope_of(src), 0);

@@ -610,6 +610,10 @@ The Python frontend now lowers every expression/statement that carries reference
 - `match` / `case` — subject + per-case block; patterns bind captures and read literal/class/key
   references (`match_case_body_narrows_a_value_used_only_there`, `match_subject_is_a_reference`).
 
-Residual (inherent, not a hole): references inside a lambda / comprehension / closure BODY are
-attributed to that scope, so they don't appear in the call graph — captures still narrow. Function
-data-dependencies (depending on a constant it READS) are handled by the data-definition model.
+References inside a lambda / comprehension / closure BODY are attributed to the nearest enclosing
+NAMED definition (`scopegraph::attribution_scope`), so a definition used only inside a closure still
+gets a placement/order edge — you meet it reading that function — closing the former blind spot where
+such a callee escaped the graph (`driver_anonymous_scope_attributes_to_enclosing_def`,
+`definition_used_only_inside_a_closure_still_gets_a_placement_edge`). Value captures are unaffected:
+they still narrow via `uses`. Function data-dependencies (depending on a constant it READS) are
+handled by the data-definition model.

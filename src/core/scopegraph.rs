@@ -303,6 +303,37 @@ impl ScopeGraph {
         None
     }
 
+    /// Is `sid` a NAMED definition scope (module / class / namespace, or a `def`/`fn`/`class` body —
+    /// i.e. its leaf is a `Decl` binding in its parent), as opposed to an ANONYMOUS body (lambda /
+    /// comprehension / closure, whose leaf — `<lambda>`, `<listcomp>`, `{closure}` — binds nothing)?
+    fn is_named_scope(&self, sid: usize) -> bool {
+        let s = &self.scopes[sid];
+        if s.is_module || s.is_class || s.is_namespace {
+            return true;
+        }
+        let leaf = s.qualname.rsplit('.').next().unwrap_or(&s.qualname);
+        match s.parent {
+            Some(p) => matches!(self.scopes[p].bindings.get(leaf).map(|b| b.kind), Some(BindKind::Decl)),
+            None => true,
+        }
+    }
+
+    /// Where a reference made in scope `sid` is ATTRIBUTED for the definition-reference graph: the
+    /// nearest enclosing NAMED definition. A reference buried in a lambda/comprehension/closure body
+    /// is read as a use by the function that contains it (you meet it reading that function), so the
+    /// referenced definition is placed/ordered against it — closing the locality blind spot where a
+    /// callee used only inside a closure escaped the graph. Value-capture narrowing is unaffected: it
+    /// runs off `uses` (block/line), not this attribution.
+    fn attribution_scope(&self, mut sid: usize) -> usize {
+        while !self.is_named_scope(sid) {
+            match self.scopes[sid].parent {
+                Some(p) => sid = p,
+                None => break,
+            }
+        }
+        sid
+    }
+
     /// gap-to-deps + gap-to-use for a value (P5 locality): unrelated sibling definitions wedged
     /// between the variable and its dependencies (above) or its first use (below). "Unrelated" =
     /// not a dependency and not sharing a dependency; on the use side, also not co-used at the
@@ -364,7 +395,9 @@ impl ScopeGraph {
             // function/class (`Decl`) OR a module-/class-level value (a constant / attribute = DATA
             // definition). A function-local variable is not a definition — its references aren't edges.
             if self.is_definition(bscope, &u.name) {
-                let referrer = u.referrer.clone().unwrap_or_else(|| self.scopes[u.scope].qualname.clone());
+                let referrer = u.referrer.clone().unwrap_or_else(|| {
+                    self.scopes[self.attribution_scope(u.scope)].qualname.clone()
+                });
                 edges.push((referrer, self.qual_of(bscope, &u.name)));
             }
             // A `self.`/`cls.` member access is a reference (an edge), but NOT a lexical use — you
