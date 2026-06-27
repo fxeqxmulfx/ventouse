@@ -22,7 +22,8 @@ LIMIT = 100              # module scope → data definition; placed/ordered, nev
   penalized for levels, and becomes an entity that `placement`/`declorder` place and order.
 
 ```python
-def f(): ...             # Decl → an entity; free of nesting, placed and ordered
+def f():                 # Decl → an entity; free of nesting, placed and ordered
+    ...
 ```
 
 - **If** the binding is an `import` → **then** it is a distinct *Import* kind: also free of nesting,
@@ -45,6 +46,8 @@ def f():
 
 ```python
 COUNTER = 0
+
+
 def bump():
     global COUNTER       # pinned shared state — `COUNTER += 1` is a use, never narrowed
     COUNTER += 1
@@ -83,14 +86,16 @@ LIMIT = 100              # module-level data def (a class attribute is the same)
 
 ```python
 class C:
-    def m(self): ...     # a Method — can pin as an accessor (when many siblings call it); never ExtractShared
+    def m(self):         # a Method — can pin as an accessor (when many siblings call it); never ExtractShared
+        ...
 ```
 
 - **If** a `def`/`fn` is in a **module or namespace** scope → **then** it is a **Function**: never
   pinned, and ExtractShared-eligible.
 
 ```python
-def f(): ...             # a Function — never pinned; can be suggested for ExtractShared
+def f():                 # a Function — never pinned; can be suggested for ExtractShared
+    ...
 ```
 
 - **If** the scope is a **class** → **then** its names are **not** lexically visible to nested
@@ -99,9 +104,11 @@ def f(): ...             # a Function — never pinned; can be suggested for Ext
 ```python
 class C:
     SIZE = 8
+
     def meth(self):
-        def inner(): return SIZE   # does NOT resolve to C.SIZE — class body invisible to a nested fn
-        return self.SIZE           # a class member is reached only via self.
+        def inner():
+            return SIZE  # does NOT resolve to C.SIZE — class body invisible to a nested fn
+        return self.SIZE  # a class member is reached only via self.
 ```
 
 - **If** the scope is a **module or namespace** → **then** its names are lexically visible to nested
@@ -109,8 +116,11 @@ class C:
 
 ```python
 LIMIT = 100
+
+
 def m():
-    def inner(): return LIMIT      # resolves to module LIMIT — normal lexical fall-through
+    def inner():
+        return LIMIT     # resolves to module LIMIT — normal lexical fall-through
 ```
 
 - **If** the scope is a **namespace or class** (not the root module) → **then** the qualname is
@@ -132,7 +142,8 @@ mod b {
 - **If** the scope is the **root module** → **then** the qualname has no prefix (`f`).
 
 ```python
-def f(): ...             # top-level → qualname `f`, no prefix
+def f():                 # top-level → qualname `f`, no prefix
+    ...
 ```
 
 Net: namespace differs from module **only** by the qualname prefix; class differs by all three —
@@ -268,7 +279,8 @@ def f(flag):
 ```python
 def f():
     value = load()       # 2 use-side wedges → ScopeDebt score = 2 * scope_level (20)
-    a = compute_a(); b = compute_b()
+    a = compute_a()
+    b = compute_b()
     return use(value)
 ```
 
@@ -296,16 +308,52 @@ def bad():
   dependency above → **then** a `ScopeDebt` finding (Misplaced) with the wedge count.
 
 ```python
-def gravity():  return 9.81
-def noise():    return 0          # unrelated, wedged between gravity and its user → Misplaced(1)
-def weight(m):  return m * gravity()
+def gravity():
+    return 9.81
+
+
+def noise():             # unrelated, wedged between gravity and its user → weight is Misplaced(1)
+    return 0
+
+
+def weight(m):
+    return m * gravity()
 ```
 
 - **If** there is no real dependency above the definition (only ubiquitous accessors) → **then**
   count = 0.
 
 ```python
-def helper():   return 1          # no dependency above it → placement count 0 wherever it sits
+def helper():            # no dependency above it → placement count 0 wherever it sits
+    return 1
+```
+
+- **If** a definition is referenced inside a lambda / comprehension / closure body → **then** the
+  reference is attributed to the nearest enclosing *named* definition (the function holding the
+  closure), so it still counts for that function's placement and declare-order — a callee used only
+  inside a closure does **not** escape the graph. (Value captures are unaffected: they narrow via uses.)
+
+```python
+def helper():
+    return 1
+
+
+def n1():
+    ...
+
+
+def n2():
+    ...
+
+
+def n3():
+    ...
+
+
+def make():
+    # helper used only in the closure → attributed to `make`, gap-to-deps from
+    # helper 3 defs above → Misplaced(3)
+    return lambda: helper()
 ```
 
 - **If** a class-member method has fan-in ≥ `accessor_fanin` (3) and depends only on other accessors
@@ -314,10 +362,17 @@ def helper():   return 1          # no dependency above it → placement count 0
 
 ```python
 class Buffer:
-    def size(self): return self._n     # one-line accessor used by ≥3 methods below →
-    def a(self): return self.size()    # pinned (de-facto data): won't inflate the placement
-    def b(self): return self.size()    # debt of methods that read it, nor be reordered
-    def c(self): return self.size()
+    def size(self):
+        return self._n      # one-line accessor used by ≥3 methods below →
+
+    def a(self):
+        return self.size()  # pinned (de-facto data): won't inflate the placement debt of
+
+    def b(self):
+        return self.size()  # methods that read it, nor be reordered
+
+    def c(self):
+        return self.size()
 ```
 
 ## Declare-before-use (the one conventional axis)
@@ -326,31 +381,46 @@ class Buffer:
   side (`bottom-up`: callee **below**; `top-down`: callee **above**) → **then** a `ForwardRef` warning.
 
 ```python
-def caller(): return leaf()       # BAD (bottom-up): `leaf` is defined below → forward reference
-def leaf():   return 1
+def caller():
+    return leaf()        # BAD (bottom-up): `leaf` is defined below → forward reference
+
+
+def leaf():
+    return 1
 ```
 
 - **If** the reference is cross-module (another file / import) → **then** it is not checked.
 
 ```python
 import other
-def f(): return other.thing()     # cross-module reference → no forward-reference warning
+
+
+def f():
+    return other.thing()  # cross-module reference → no forward-reference warning
 ```
 
 - **If** the callee can reach the caller (a cycle / mutual recursion / self-reference) → **then** it
   is exempt (no warning).
 
 ```python
-def even(n): return n == 0 or odd(n - 1)    # `odd` is below, but they form a cycle → exempt
-def odd(n):  return n != 0 and even(n - 1)
+def even(n):
+    return n == 0 or odd(n - 1)   # `odd` is below, but they form a cycle → exempt
+
+
+def odd(n):
+    return n != 0 and even(n - 1)
 ```
 
 - **If** one caller references one callee multiple times → **then** one warning per pair.
 
 ```python
 def caller():
-    leaf(); leaf()                # two references to the same below-defined `leaf` → ONE warning
-def leaf(): return 1
+    leaf()
+    leaf()               # two references to the same below-defined `leaf` → ONE warning
+
+
+def leaf():
+    return 1
 ```
 
 ## Suggestions (actionable advice)
@@ -360,34 +430,77 @@ def leaf(): return 1
   times total by ≥2 others → **then** advise "extract into its own module".
 
 ```python
-def gravity(): return 9.81        # ─ this misplaced cluster gives the FILE placement debt that is
-def noise():   return 0           #   ExtractShared's precondition (without it, nothing fires) ─
-def weight(m): return m * gravity()
-def shared(): return 1            # `shared` has 4 distinct callers → "extract into its own module"
-def a(): return shared()          # (those refs become cross-file and stop wedging; the rest localizes)
-def b(): return shared()
-def c(): return shared()
-def d(): return shared()
+# this misplaced cluster gives the FILE placement debt that is ExtractShared's
+# precondition (without it, nothing fires):
+def gravity():
+    return 9.81
+
+
+def noise():
+    return 0
+
+
+def weight(m):
+    return m * gravity()
+
+
+# `shared` has 4 distinct callers → "extract into its own module" (those refs
+# become cross-file and stop wedging; the rest localizes):
+def shared():
+    return 1
+
+
+def a():
+    return shared()
+
+
+def b():
+    return shared()
+
+
+def c():
+    return shared()
+
+
+def d():
+    return shared()
 ```
 
 - **If** the file carries no placement debt → **then** ExtractShared is not emitted (a tightly
   clustered helper needs no extraction).
 
 ```python
-def shared(): return 1            # referenced a lot, but if NOTHING in the file is misplaced,
-def a(): return shared()          # there is nothing to localize → no ExtractShared
-def b(): return shared()
+def shared():            # referenced a lot, but if NOTHING in the file is misplaced,
+    return 1             # there is nothing to localize → no ExtractShared
+
+
+def a():
+    return shared()
+
+
+def b():
+    return shared()
 ```
 
 - **`CrowdedScope`** — **if** a function's *independent* locals (empty deps) together carry ≥
   `crowded_scope` (100) debt → **then** advise "bundle them into a struct/dataclass".
 
 ```python
-def bad(rows):                    # six independent accumulators wedging each other →
-    total = 0; count = 0          # "bundle them into a dataclass"
-    largest = 0; smallest = 0
-    names = []; seen = set()
-    for r in rows: ...
+def bad(rows):           # six independent accumulators wedging each other →
+    total = 0            # "bundle them into a dataclass"
+    count = 0
+    largest = 0
+    smallest = 0
+    names = []
+    seen = set()
+    for r in rows:
+        total += r.value
+        count += 1
+        largest = max(largest, r.value)
+        smallest = min(smallest, r.value)
+        names.append(r.name)
+        seen.add(r.id)
+    return total, count, largest, smallest, names, seen
 ```
 
 - **If** the debt comes from interdependent, sequential locals → **then** the function is **not**
@@ -395,8 +508,8 @@ def bad(rows):                    # six independent accumulators wedging each ot
 
 ```python
 def good():
-    a = step1()                   # each local feeds the next (interdependent) → not an independent
-    b = step2(a)                  # cluster → CrowdedScope does NOT fire
+    a = step1()          # each local feeds the next (interdependent) → not an independent
+    b = step2(a)         # cluster → CrowdedScope does NOT fire
     c = step3(b)
     return c
 ```
@@ -406,8 +519,10 @@ def good():
 
 ```python
 def bad():
-    q = setup()                   # bound early, first used after 3 unrelated defs → "move it down"
-    a = step_one(); b = step_two(); c = step_three()
+    q = setup()          # bound early, first used after 3 unrelated defs → "move it down"
+    a = step_one()
+    b = step_two()
+    c = step_three()
     log(a, b, c)
     return run(q)
 ```
@@ -416,19 +531,36 @@ def bad():
   `reorder_wedges` unrelated siblings in between → **then** the same advice at the definition level.
 
 ```python
-def helper(): return 1            # declared far above its first use, 3 unrelated defs between →
-def x(): ...                      # "push the definition down to its use"
-def y(): ...
-def z(): ...
-def main(): return helper()
+def helper():            # declared far above its first use, 3 unrelated defs between → "move it down"
+    return 1
+
+
+def x():
+    ...
+
+
+def y():
+    ...
+
+
+def z():
+    ...
+
+
+def main():
+    return helper()
 ```
 
 - **If** the reference is *above* the definition → **then** it is a forward reference (a `declorder`
   matter), not a reorder → skipped.
 
 ```python
-def main():   return helper()     # reference ABOVE the definition → forward-ref (declorder),
-def helper(): return 1            # NOT a reorder
+def main():
+    return helper()      # reference ABOVE the definition → forward-ref (declorder), NOT a reorder
+
+
+def helper():
+    return 1
 ```
 
 - **`NarrowToBlock`** — **if** `levels_excess >= narrow_levels` (1) and the first use is below the
@@ -436,8 +568,8 @@ def helper(): return 1            # NOT a reorder
 
 ```python
 def bad(flag):
-    x = compute()                 # declared 1 level too high, used only in the block →
-    if flag:                      # "declare it at its first use, inside the block"
+    x = compute()        # declared 1 level too high, used only in the block →
+    if flag:             # "declare it at its first use, inside the block"
         return use(x)
 ```
 
@@ -447,8 +579,8 @@ def bad(flag):
 
 ```python
 def ok(rows):
-    acc = 0                       # first use is inside the loop → reorder signal dropped
-    junk = noise()                # (moving the seed in would reset it); the wedge debt still shows
+    acc = 0              # first use is inside the loop → reorder signal dropped
+    junk = noise()       # (moving the seed in would reset it); the wedge debt still shows
     for r in rows:
         acc += r
     return acc
@@ -478,12 +610,23 @@ def f():
 
 ```python
 class C:
-    def step(self): return raw()        # low fan-in → not an accessor
-    def junk(self): return 0
-    def core(self): return self.step()  # depends on a non-accessor → not pinned; junk wedges it →
-    def a(self): return self.core()     # `C.core` Misplaced(1), but it's a method → no suggestion
-    def b(self): return self.core()
-    def c(self): return self.core()
+    def step(self):
+        return raw()        # low fan-in → not an accessor
+
+    def junk(self):
+        return 0
+
+    def core(self):
+        return self.step()  # depends on a non-accessor → not pinned; junk wedges it →
+
+    def a(self):
+        return self.core()  # `C.core` Misplaced(1), but it's a method → no suggestion
+
+    def b(self):
+        return self.core()
+
+    def c(self):
+        return self.core()
 ```
 
 - a **local first-used inside a loop** — `use_wedges` is explicitly zeroed (pushing a seed in resets it).
@@ -502,12 +645,23 @@ def ok(rows):
 
 ```python
 class C:
-    def p(self): return self.q()        # p and q call each other → no pure-leaf seed → not pinned
-    def q(self): return self.p()
-    def noise(self): return 0
-    def a(self): return self.p() + self.q()   # noise wedges → `C.a` Misplaced(1), driven by the
-    def b(self): return self.p() + self.q()   # un-pinned p/q (a real accessor would be pinned away)
-    def c(self): return self.p() + self.q()
+    def p(self):
+        return self.q()              # p and q call each other → no pure-leaf seed → not pinned
+
+    def q(self):
+        return self.p()
+
+    def noise(self):
+        return 0
+
+    def a(self):
+        return self.p() + self.q()   # noise wedges → `C.a` Misplaced(1), driven by the un-pinned p/q
+
+    def b(self):
+        return self.p() + self.q()
+
+    def c(self):
+        return self.p() + self.q()
 ```
 
 ## Default thresholds (all tunable in `[tool.ventouse.weights]`)
