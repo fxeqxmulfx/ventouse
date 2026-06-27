@@ -178,6 +178,8 @@ so it's **one signal among several and a final layout pass**, not the whole pict
 
 ## Repository
 
+- [RULES.md](RULES.md) — the complete "if … then …" decision logic of the core, every rule with a
+  minimal bad-vs-good example and the default thresholds.
 - [todo.md](todo.md) — the specification: locality rules, scoring, per-language mapping, test matrix.
 - [tests/DESIGN.md](tests/DESIGN.md) — every case with exact expected numbers + a rule→case checklist.
 - [tests/fixtures/python/catalog/](tests/fixtures/python/catalog/) — tiny good-vs-bad examples per rule.
