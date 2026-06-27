@@ -185,4 +185,4 @@ so it's **one signal among several and a final layout pass**, not the whole pict
 
 ## License
 
-MIT (placeholder — TBD).
+MIT — see [LICENSE](LICENSE).
