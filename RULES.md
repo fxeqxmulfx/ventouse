@@ -395,8 +395,8 @@ def bad(rows):                    # six independent accumulators wedging each ot
 
 ```python
 def good():
-    a = step1()                   # each local feeds the next (interdependent) → not a bundleable
-    b = step2(a)                  # bag → CrowdedScope does NOT fire
+    a = step1()                   # each local feeds the next (interdependent) → not an independent
+    b = step2(a)                  # cluster → CrowdedScope does NOT fire
     c = step3(b)
     return c
 ```
