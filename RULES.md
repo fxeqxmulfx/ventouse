@@ -664,6 +664,37 @@ class C:
         return self.p() + self.q()
 ```
 
+### What the locality metric deliberately does NOT measure
+
+The wedge metric looks at exactly two windows: `[nearest dependency above → declaration]` (dep-side)
+and `[declaration → FIRST use]` (use-side). Everything outside those windows is invisible **by
+design** — these are boundaries of the metric, not bugs to "fix":
+
+- **Junk across a binding's live range** (between its *first* and *later* uses) is not counted. A
+  value used early and late with unrelated work between has **no single safe move** (it is pinned by
+  two live uses), so flagging it only produces false alarms. Measured experimentally: extending the
+  use-side window to the last use raised debt on ventouse's own (clean) source by ~43%, almost all of
+  it foundational locals declared at the top and correctly used throughout. Reverted — the
+  `→ first use` window is intentional.
+- **`self.`/member uses** never drive narrowing — a class attribute can't be moved into the method
+  that reads it.
+- **Cross-file distance** — locality is per-module; a definition far from its only cross-file user is
+  not measured (that is the `ExtractShared` premise).
+- **A value used across two scopes** can't narrow below their LCA, so it is not flagged toward either.
+
+Contrast with the closure hole (now fixed): there the reference was genuinely *lost* from the graph,
+so the definition's real distance went unmeasured — fixable with zero added noise. These boundaries
+are the opposite: the connection is present, but penalizing it would be a false alarm.
+
+```python
+def f():
+    x = setup()
+    log(x)               # first use — tight
+    a = step_one()       # unrelated work in x's live range...
+    b = step_two()       # ...but x is pinned by two uses, so this is NOT counted (no safe move)
+    return run(x)        # later use of x
+```
+
 ## Default thresholds (all tunable in `[tool.ventouse.weights]`)
 
 | Constant | Default | Role |
