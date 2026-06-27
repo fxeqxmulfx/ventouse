@@ -470,7 +470,7 @@ attribution falls back to the enclosing scope inside a function.
 
 ## Suggestions — the metric naming the fix (`tests/core_defgraph.rs`, `tests/m4_scope.rs`)
 
-Beyond the number, three `Category::Suggestion` findings (score 0) point at a safe, mechanical
+Beyond the number, four `Category::Suggestion` findings (score 0) point at a safe, mechanical
 refactor. Catalog: `tests/fixtures/python/catalog/`.
 
 ### ReorderBinding — push a scattered local down to its use
@@ -510,6 +510,18 @@ def crowded(rows):
 Independent accumulators wedging each other for ≥100 scope-debt → suggest one struct/dataclass
 (N siblings collapse to one). Only INDEPENDENT-local debt counts; interdependent sequential locals
 are not flagged (splitting wouldn't lower locality).
+
+### NarrowToBlock — declare a too-high local at its use, inside the block
+```python
+def f(flag):
+    x = compute()        # declared at the top, used only inside the `if`
+    if flag:
+        return use(x)
+```
+`x` is used one level deeper than it is declared → suggest declaring it at its first use inside the
+block → `NarrowToBlock{first_use, levels: 1}` (alongside the `ExcessLevels{1}` score). The levels-term
+twin of `ReorderBinding`; the narrow target caps above any loop, so the push-in is always safe
+(loop-carried state has `levels` 0, so it is never flagged here).
 
 ## Findings model & rendering (decoupled)
 
@@ -557,7 +569,7 @@ A functional core declared bottom-up, every binding next to its uses → scope-d
 The core verdict is language-agnostic; per-language fixtures prove the locality axioms hold through
 each language's SURFACE.
 
-**Scope-debt in block-scoped languages** (Rust done; JS, C++ planned): the model is the same
+**Scope-debt in block-scoped languages** (Rust, C++ done; JS planned): the model is the same
 everywhere — `levels` (narrowest block, loop-aware) + `wedges`. The only difference is that in block-
 scoped languages the `levels` term narrows the REAL runtime scope, so it bites harder than in
 function-scoped Python. There is no per-line liveness in any language.
@@ -567,7 +579,8 @@ function-scoped Python. There is no per-line liveness in any language.
 
 **Rust** is the second working frontend (`tests/rust_lang.rs`): block-scoped `let`, `impl T` → class
 scope `T` (`self.`/`Self::` member-resolved), `const`/`static` as data, and `self.field` correctly
-treated as a field, not the same-named method. JS/TS and C++ fixtures land with their milestones.
+treated as a field, not the same-named method. **C++** is the third working frontend
+(`tests/cpp_lang.rs`), via libclang + `compile_commands.json`. JS/TS fixtures land with their milestone.
 
 ## Coverage checklist (rule → case)
 
@@ -581,8 +594,9 @@ treated as a field, not the same-named method. JS/TS and C++ fixtures land with 
 - Declare-before-use: W1–W10, EC14 (self-rec); references model R1–R6 (decorator/base/default
   attribution, bare-name + self-member references, annotation exclusion, header cycle); direction
   flag (`--order` bottom-up/top-down, cycles exempt both ways).
-- Suggestions: `ReorderBinding` (incl. loop-carried suppression), `ExtractShared` (≥4 distinct,
-  self-rec excluded), `CrowdedScope` (independent-bag only). Catalog `01`–`03`.
+- Suggestions: `ReorderBinding` (incl. loop-carried suppression), `NarrowToBlock` (levels-term twin),
+  `ExtractShared` (≥4 distinct, self-rec excluded), `CrowdedScope` (independent-bag only).
+  Catalog `01`–`03`.
 - Findings/render/CLI/robustness: OUT1–5/7, Z, ROB1.
 
 ## Frontend lowering completeness

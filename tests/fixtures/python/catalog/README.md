@@ -1,7 +1,8 @@
 # Rule catalog — good vs. bad, by rule
 
 Tiny, self-contained Python examples for every ventouse rule. Each `*_bad` triggers
-exactly one finding (named in a comment); each `*_good` scores 0. Run any file:
+the finding named in its comment (a levels case also yields its paired `NarrowToBlock`
+suggestion); each `*_good` scores 0. Run any file:
 
 ```
 ventouse tests/fixtures/python/catalog/01_local_scope.py --all
@@ -13,6 +14,7 @@ ventouse tests/fixtures/python/catalog/01_local_scope.py --all
 | `Misplaced` (wedge) | scope-debt | `01` `wedge_*` | unrelated definitions between a value and what it connects to |
 | `UseBeforeDecl` (value) | warning | `01` `use_before_*` | a name read before it is bound, same scope |
 | `ReorderBinding` | suggestion | `01` `reorder_*` | a value declared ≥3 definitions above its first use → move it down |
+| `NarrowToBlock` | suggestion | `01` `levels_*` | a value used only in a deeper block → declare it at its first use, inside the block |
 | `UseBeforeDecl` (function) | warning | `02` `caller_*` | a callee defined below its caller (forward reference) |
 | `Misplaced` (placement) | scope-debt | `02` `weight`/`gravity` | a definition wedged away from what it references |
 | `ExtractShared` | suggestion | `02` `shared`/`task_*` | shared infrastructure (≥4 callers) → extract into its own module |

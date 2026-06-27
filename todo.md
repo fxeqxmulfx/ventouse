@@ -1,6 +1,6 @@
 # ventouse — plan (v5, locality-only, single-graph)
 
-Multi-language code analyzer in Rust (Python, Rust done; JS/TS, C++ planned): a **locality** metric
+Multi-language code analyzer in Rust (Python, Rust, C++ done; JS/TS planned): a **locality** metric
 (scope-debt) + a declaration-order warning + actionable refactor suggestions. Language-agnostic core
 + frontends on native parsers behind a common trait.
 
@@ -198,7 +198,7 @@ The reference language, fully specified above.
   (`matches!`, custom DSLs) remain a hole. Type references (signatures/generics) are excluded.
 - Dogfood: `ventouse <dir> --lang=rust` ran on ventouse's own `src/` AND external projects, driving core
   fixes (cousin-block wedge exemption, nearest-dep anchoring, let-chain lowering, `self.field`-is-not-
-  a-method, loop-carried `ReorderBinding`) + all three suggestions. Acting on `ExtractShared` is
+  a-method, loop-carried `ReorderBinding`) + all four suggestions. Acting on `ExtractShared` is
   exactly why `lang/rust` is split (`prim` vs `lower`): the vocabulary's references became cross-file
   (un-penalized), cutting the frontend's placement debt.
 
@@ -222,7 +222,8 @@ src/
            model.rs (EntityKind/Reason) · score.rs (Weights) · finding.rs · analyze.rs (pipeline)
   render/  mod.rs · text.rs · json.rs                                          (display only)
   lang/    mod.rs · python/{prim,lower,mod}.rs (ruff AST → Actions)
-           rust/{prim,lower,mod}.rs (syn AST → Actions)   [later] javascript/ (oxc) · cpp/ (libclang)
+           rust/{prim,lower,mod}.rs (syn AST → Actions) · cpp/{prim,lower,mod,compdb}.rs (libclang)
+           [later] javascript/ (oxc)
   config.rs · discover.rs · main.rs
 tests/     core_*.rs (language-agnostic core, no parser) · m*.rs (Python e2e) · fixtures/<lang>/...
 ```
@@ -253,7 +254,8 @@ Pipeline: discover → frontend (lower → `ScopeGraph` → `ScopeOutput`, carri
 - `reason`: a stable reason code + structured detail — `ExcessLevels{n}` (nesting),
   `Misplaced{n}` (n unrelated definitions wedged), `UseBeforeDecl` (bottom-up order / value read
   before binding), `DeclaredBeforeUse` (top-down order), `ExtractShared{n}`, `CrowdedScope{n}`,
-  `ReorderBinding{first_use, wedged}`, `ParseError`. The human wording lives in `render`, not core.
+  `ReorderBinding{first_use, wedged}`, `NarrowToBlock{first_use, levels}`, `ParseError`. The human
+  wording lives in `render`, not core.
 
 **Suggestions (actionable, not penalties).** Beyond scoring, the analysis emits suggestions — the
 metric pointing at *what to do*, not just the number:
@@ -279,6 +281,10 @@ metric pointing at *what to do*, not just the number:
   loop-carried accumulator's seed (`total = 0`) can't move into the loop (it would reset each
   iteration). The wedge debt still stands there; bundling (`CrowdedScope`) is the right fix, not
   reordering. (Surfaced by writing the example catalog.)
+- `NarrowToBlock{first_use, levels}`: a local used only inside a block nested `levels` deeper than its
+  declaration → declare it at its first use, inside that block, shrinking its live range. The
+  levels-term twin of `ReorderBinding`; the narrow target already caps above any loop boundary, so a
+  flagged binding is always safe to push in (loop-carried state has `levels` 0).
 
 **Report / output.** The renderer presents the VIEW the caller asks for, via flags:
 - `--format text|json` (default text);
@@ -413,7 +419,7 @@ worked cases.
 - [x] **Rust frontend (syn)** — `src/lang/rust/{prim,lower,mod}`: `ScopeLang` over syn; block-scoped
       `let`, `impl T` → class scope `T`, `const`/`static` as data, expr-list macro reference recovery.
       `tests/rust_lang.rs`. Dogfooded on its own source AND external projects.
-- [x] **Suggestions** — `ExtractShared` / `CrowdedScope` / `ReorderBinding` in `core::analyze`
+- [x] **Suggestions** — `ExtractShared` / `CrowdedScope` / `ReorderBinding` / `NarrowToBlock` in `core::analyze`
       (`tests/core_defgraph.rs`, `tests/m4_scope.rs`). The actionable layer: the metric naming the fix.
 - [x] **Declare-order direction flag** — `--order=bottom-up|top-down` (`Weights.order`); the one
       conventional axis made configurable (`tests/m4_references.rs`).
@@ -425,8 +431,8 @@ worked cases.
       wedges). Self-scan + external-project scans drive these.
 - [ ] **JS/TS frontend (oxc)** — a `ScopeLang` impl over the oxc AST. `let`/`const` block-scoping
       makes `levels` narrow real runtime scope; `var` is function-scoped. Fixtures: `…/js/`, `…/ts/`.
-- [ ] **C++ frontend (libclang)** — `ScopeLang` over libclang; scope + in-class method-order
-      warnings. Needs libclang + `compile_commands.json`/flags to parse.
+- [x] **C++ frontend (libclang)** — `ScopeLang` over libclang; scope + in-class method-order
+      warnings; reads `compile_commands.json` for flags. `tests/cpp_lang.rs` + `fixtures/cpp/`.
 
 ## Implementation notes
 
