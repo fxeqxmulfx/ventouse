@@ -1,0 +1,29 @@
+[package]
+name = "ventouse"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ruff_python_ast = { git = "https://github.com/astral-sh/ruff", tag = "0.15.8" }
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff", tag = "0.15.8" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff", tag = "0.15.8" }
+walkdir = "2.5.0"
+syn = { version = "2", features = ["full"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+# C++ frontend: libclang via the `clang` crate. `runtime` loads a (possibly versioned) `libclang`
+# at run time — no build-time linking and no `LIBCLANG_PATH` needed when one sits on the default
+# search path. `clang_10_0` is the newest API level this crate version exposes (a real libclang is
+# backward-compatible, so a system libclang-18 serves it fine).
+clang = { version = "2", features = ["runtime", "clang_10_0"] }
+# Direct handle on the runtime loader so the per-thread libclang TLS can be shared across the
+# parallel-parsing worker threads (`get_library`/`set_library`).
+clang-sys = { version = "1", features = ["runtime", "clang_10_0"] }
+# Reading `compile_commands.json` (the C++ frontend's precise compile flags) — JSON with quoted/
+# escaped command strings is worth a real parser rather than a fragile hand-rolled scan.
+serde_json = "1"
+
+# Strict clippy across the whole project (lib, bins, tests, benches): the full default lint set is
+# denied, so a lint fails the build under `cargo clippy`. Opt out narrowly with a local
+# `#[allow(clippy::...)]` and a reason.
+[lints.clippy]
+all = "deny"
