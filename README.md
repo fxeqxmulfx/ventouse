@@ -6,8 +6,8 @@ it** (reorder this binding, extract this helper, bundle these accumulators). The
 the way a human reviewer reads it.
 
 > Status: locality-only, one graph (the scope graph). Language-agnostic core with direct unit tests
-> at **100% coverage**. **Python (`ruff`) and Rust (`syn`) frontends are done**; JS/TS and C++ are
-> planned ([todo.md](todo.md)).
+> at **100% coverage**. **Python (`ruff`), Rust (`syn`) and C++ (`libclang`) frontends are done**;
+> JS/TS (`oxc`) is planned ([todo.md](todo.md)).
 
 ## The problem
 
@@ -44,6 +44,7 @@ safe, mechanical refactor the metric can justify:
 | Suggestion | Fires when | The move |
 |------------|-----------|----------|
 | **ReorderBinding** | a local is declared ≥3 definitions above its first use | push the declaration down to its use (the things in between provably don't depend on it — and it won't suggest moving a loop-carried accumulator into its loop) |
+| **NarrowToBlock** | a local is used only inside a block nested deeper than where it's declared | declare it at its first use, inside that block — its live range shrinks to the scope that actually needs it |
 | **ExtractShared** | a definition is referenced all over a file that carries placement debt | pull it into its own module — per-file analysis then stops penalizing those (now cross-file) references and the rest localizes |
 | **CrowdedScope** | a function holds a bag of *independent* mutable accumulators wedging each other | bundle them into one struct/dataclass — N siblings collapse to one |
 
@@ -100,25 +101,73 @@ the reference graph, the entity list, declare-order). Only the *surface* differs
 |----------|--------|--------|
 | Python | `ruff_python_parser` | done |
 | Rust | `syn` | done |
+| C++ | `libclang` | done |
 | JavaScript / TypeScript | `oxc` | planned |
-| C++ | `libclang` | planned |
 
 In block-scoped languages (Rust, JS `let`/`const`, C++) `levels` narrows the **real** runtime scope,
 so it bites harder than in function-scoped Python. Dogfooding ventouse on its own source — and on
 external projects — surfaced and fixed several core imprecisions (cross-branch wedges, nearest-dep
 anchoring, field-vs-method conflation, loop-carried reordering), each now a regression test.
 
+## Installing & running
+
+ventouse is a single Rust binary (edition 2024 — needs a recent stable toolchain).
+
+```
+git clone <repo> && cd ventouse
+cargo build --release          # binary at target/release/ventouse
+cargo install --path .         # or install it onto your PATH as `ventouse`
+```
+
+Point it at a file or a directory; it discovers sources, analyzes the whole tree as one project, and
+prints findings. The language is auto-detected from whichever extension dominates the path — override
+with `--lang`.
+
+```
+ventouse                       # analyze ./  (auto-detect language)
+ventouse src/                  # a directory
+ventouse path/to/file.py       # a single file
+ventouse src --lang=rust       # force a frontend
+```
+
+Without installing:
+
+```
+cargo run --release -- src --top=10 --by=function
+```
+
+### Per language
+
+- **Python** — works out of the box (`.py`).
+- **Rust** — works out of the box (`.rs`).
+- **C++** — needs **libclang** available at run time (any system `libclang-*.so`; no build-time
+  linking, no `LIBCLANG_PATH` if it sits on the default search path). For accurate include paths and
+  flags, run from a build dir that has a **`compile_commands.json`** (CMake: `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`);
+  ventouse reads it automatically. Without it the parse is best-effort. See [HACKS.md](HACKS.md) for
+  the libclang specifics.
+
 ## CLI
 
 ```
-ventouse [PATH] [--lang=python|rust] [--order=bottom-up|top-down] \
+ventouse [PATH] [--lang=python|rust|cpp] [--order=bottom-up|top-down] \
        [--format=text|json] [--summary | --all | --top=N --by=function|class|file] [--error]
 ```
 
-`--summary` (default) is the headline total + per-file rollup; `--top=N` ranks the worst offenders;
-`--all` lists every finding. **Measure, don't judge**: raw numbers, no built-in pass/fail thresholds
-— a gradient is more useful than a gate. Scoring constants are overridable via
-`[tool.ventouse.weights]` in `pyproject.toml`.
+| Flag | Meaning |
+|------|---------|
+| `PATH` | file or directory to analyze (default `.`) |
+| `--lang=python\|rust\|cpp` | force a frontend (default: auto-detect by file count) |
+| `--order=bottom-up\|top-down` | declare-order convention (default `bottom-up`; see [above](#the-one-opinionated-axis)) |
+| `--format=text\|json` | output format (default `text`) |
+| `--summary` | headline total + per-file rollup (**default**) |
+| `--all` | list every finding |
+| `--top=N --by=function\|class\|file` | rank the N worst offenders, grouped by source |
+| `--error` | exit non-zero if any parse error occurred (for CI) |
+
+**Measure, don't judge**: raw numbers, no built-in pass/fail thresholds — a gradient is more useful
+than a gate. All scoring constants and suggestion thresholds are overridable via
+`[tool.ventouse.weights]` in `pyproject.toml` (in the analyzed project's root), so you can tune
+sensitivity without rebuilding.
 
 ## What it is not
 
