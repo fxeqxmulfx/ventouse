@@ -174,15 +174,22 @@ method/class/constructor is.
 ### Python (ruff — `ruff_python_parser`) — baseline
 The reference language, fully specified above.
 
-### JavaScript / TypeScript (oxc)
-- Entities: `function` decls, arrow/function expressions, methods, `class`.
-- Scope: `let`/`const` are block-scoped → `levels` narrows the REAL runtime scope (more impactful
-  than Python). `var` is function-scoped/hoisted → like Python. Same metric (levels + wedges).
-- Declare-before-use: `let`/`const` TDZ and `var` hoisting both make use-before-decl a bug →
-  warning. Function decls hoist, but the textual "callees before callers" rule still applies
-  (cycles exempt).
-- TS adds no new locality surface beyond JS (type-only constructs — interface/type/declare/abstract/
-  overload — are erased and are never entities).
+### JavaScript / TypeScript (oxc) — DONE (`src/lang/ts/`: `prim` vocabulary · `lower` rules · `mod` pipeline)
+- Entities: `function` decls, methods, `class`; AND an arrow/function/class assigned to a name
+  (`const Foo = () => …` / `= function …` / `= class …`) — lowered as a NAMED definition `Foo`, the
+  dominant JS/React shape (components/hooks/handlers), so debt lands on `Foo` not an anonymous
+  `<arrow>` (HACKS §7b.1). A class-field arrow (`onClick = () => …`) is a method.
+- Scope: block-scoped, `let`/`const` narrow the REAL enclosing block (more impactful than Python).
+  `var` is lowered as block-scoped too (a documented simplification; legacy `var` at worst slightly
+  over-narrows). Same metric (levels + wedges). A class field is DATA; a module `const` is data.
+- Declare-before-use: the textual "callees before callers" rule applies (cycles exempt), even though
+  `function` decls hoist — it is a HUMAN top-down signal, like Rust's order-free items.
+- TS adds no new locality surface (type-only constructs — interface/type/declare/abstract/overload —
+  are erased, never entities; annotations/generics excluded per the references model).
+- **JSX / React** (`.tsx`/`.jsx`): a component reference in a tag and `{ … }` expression containers
+  feed the reference graph; a `use*(…)` hook result is positionally PINNED by the rules of hooks
+  (`intro`, like a loop-carried seed) so it isn't flagged for reorder (HACKS §7b.2).
+- Tested on real repos (Node TS backend + React TS app, 0 parse errors) + `tests/ts_lang.rs`.
 
 ### Rust (syn) — DONE (`src/lang/rust/`: `prim` vocabulary · `lower` rules · `mod` pipeline)
 - Entities: `fn`, methods in `impl` blocks; `struct`/`enum`/`union`/`trait` are the class-like unit;

@@ -31,7 +31,14 @@ The **Python frontend** is tested end-to-end:
   discovery, ParseError wiring).
 
 The **Rust frontend** is tested in `tests/rust_lang.rs` (block-scoped `let`, `impl`/`self` member
-resolution + ordering, `const` data, `self.field` is not a method).
+resolution + ordering, `const` data, `self.field` is not a method). The **C++ frontend** is tested in
+`tests/cpp_lang.rs` (libclang).
+
+The **TS/JS frontend** (oxc) is tested in `tests/ts_lang.rs`: block-scoped `let`/`const`, an arrow
+assigned to a name as a named definition, a class method via `this.`, React hook pinning
+(`useState` result not flagged), and JSX (a component / `{onClick}` reference is a real edge). It
+covers `.ts`/`.tsx`/`.js`/`.jsx` — JS gets the same React-aware lowering (named arrows, hooks, JSX)
+since those are syntactic, not type-driven.
 
 A **catalog** of tiny good-vs-bad examples, one per rule, lives in `tests/fixtures/python/catalog/`
 (`01_local_scope` · `02_definitions` · `03_free_and_crowded` + README); each `*_bad` triggers exactly
