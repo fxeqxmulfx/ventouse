@@ -569,7 +569,7 @@ A functional core declared bottom-up, every binding next to its uses → scope-d
 The core verdict is language-agnostic; per-language fixtures prove the locality axioms hold through
 each language's SURFACE.
 
-**Scope-debt in block-scoped languages** (Rust, C++ done; JS planned): the model is the same
+**Scope-debt in block-scoped languages** (Rust, C++, TS/JS done): the model is the same
 everywhere — `levels` (narrowest block, loop-aware) + `wedges`. The only difference is that in block-
 scoped languages the `levels` term narrows the REAL runtime scope, so it bites harder than in
 function-scoped Python. There is no per-line liveness in any language.
@@ -580,7 +580,7 @@ function-scoped Python. There is no per-line liveness in any language.
 **Rust** is the second working frontend (`tests/rust_lang.rs`): block-scoped `let`, `impl T` → class
 scope `T` (`self.`/`Self::` member-resolved), `const`/`static` as data, and `self.field` correctly
 treated as a field, not the same-named method. **C++** is the third working frontend
-(`tests/cpp_lang.rs`), via libclang + `compile_commands.json`. JS/TS fixtures land with their milestone.
+(`tests/cpp_lang.rs`), via libclang + `compile_commands.json`. **TS/JS** is the fourth (`tests/ts_lang.rs`), via `oxc` — block-scoped, JSX/React-aware (named arrows, hook pinning).
 
 ## Coverage checklist (rule → case)
 

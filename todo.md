@@ -1,6 +1,6 @@
 # ventouse — plan (v5, locality-only, single-graph)
 
-Multi-language code analyzer in Rust (Python, Rust, C++ done; JS/TS planned): a **locality** metric
+Multi-language code analyzer in Rust (Python, Rust, C++, JS/TS done): a **locality** metric
 (scope-debt) + a declaration-order warning + actionable refactor suggestions. Language-agnostic core
 + frontends on native parsers behind a common trait.
 
@@ -222,8 +222,8 @@ src/
            model.rs (EntityKind/Reason) · score.rs (Weights) · finding.rs · analyze.rs (pipeline)
   render/  mod.rs · text.rs · json.rs                                          (display only)
   lang/    mod.rs · python/{prim,lower,mod}.rs (ruff AST → Actions)
-           rust/{prim,lower,mod}.rs (syn AST → Actions) · cpp/{prim,lower,mod,compdb}.rs (libclang)
-           [later] javascript/ (oxc)
+           rust/{prim,lower,mod}.rs (syn) · cpp/{prim,lower,mod,compdb}.rs (libclang)
+           ts/{prim,lower,mod}.rs (oxc AST → Actions; TS/JS, incl. JSX/React)
   config.rs · discover.rs · main.rs
 tests/     core_*.rs (language-agnostic core, no parser) · m*.rs (Python e2e) · fixtures/<lang>/...
 ```
@@ -430,8 +430,9 @@ worked cases.
       anchoring, Rust `self.field`-is-not-a-method conflation, `ReorderBinding` on loop-carried
       accumulators, loop-variable phantom-wedge (for-target bound inside the loop + `intro` accrues no
       wedges). Self-scan + external-project scans drive these.
-- [ ] **JS/TS frontend (oxc)** — a `ScopeLang` impl over the oxc AST. `let`/`const` block-scoping
-      makes `levels` narrow real runtime scope; `var` is function-scoped. Fixtures: `…/js/`, `…/ts/`.
+- [x] **JS/TS frontend (oxc)** — `ScopeLang` over the oxc AST; block-scoped `let`/`const`, arrows
+      named after their binding (`const Foo = () => …`), React hook pinning, and JSX/component
+      references. `tests/ts_lang.rs`.
 - [x] **C++ frontend (libclang)** — `ScopeLang` over libclang; scope + in-class method-order
       warnings; reads `compile_commands.json` for flags. `tests/cpp_lang.rs` + `fixtures/cpp/`.
 

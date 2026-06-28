@@ -7,8 +7,8 @@ use std::process::ExitCode;
 
 use ventouse::config::weights_from_pyproject;
 use ventouse::core::{Category, DeclOrder, Severity};
-use ventouse::discover::{cpp_files, source_files};
-use ventouse::lang::{cpp, python, rust};
+use ventouse::discover::{cpp_files, source_files, ts_files};
+use ventouse::lang::{cpp, python, rust, ts};
 use ventouse::render::{By, Format, View, render};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -16,6 +16,7 @@ enum Lang {
     Python,
     Rust,
     Cpp,
+    Ts,
 }
 
 struct Args {
@@ -28,7 +29,7 @@ struct Args {
 }
 
 fn usage() -> String {
-    "usage: ventouse [PATH] [--lang=python|rust|cpp] [--order=bottom-up|top-down] [--format=text|json] [--summary|--all|--top=N --by=function|class|file] [--error]"
+    "usage: ventouse [PATH] [--lang=python|rust|cpp|ts] [--order=bottom-up|top-down] [--format=text|json] [--summary|--all|--top=N --by=function|class|file] [--error]"
         .to_string()
 }
 
@@ -56,6 +57,7 @@ fn parse_args() -> Result<Args, String> {
             "--lang=python" => a.lang = Some(Lang::Python),
             "--lang=rust" => a.lang = Some(Lang::Rust),
             "--lang=cpp" => a.lang = Some(Lang::Cpp),
+            "--lang=ts" | "--lang=typescript" | "--lang=js" => a.lang = Some(Lang::Ts),
             "--order=bottom-up" => a.order = DeclOrder::BottomUp,
             "--order=top-down" => a.order = DeclOrder::TopDown,
             "-h" | "--help" => return Err(usage()),
@@ -95,22 +97,21 @@ fn main() -> ExitCode {
 
     // Pick the language: explicit `--lang`, else whichever has the most files under the path.
     let lang = args.lang.unwrap_or_else(|| {
-        let py = source_files(&args.path, "py").len();
-        let rs = source_files(&args.path, "rs").len();
-        let cpp = cpp_files(&args.path).len();
-        if cpp >= py && cpp >= rs && cpp > 0 {
-            Lang::Cpp
-        } else if rs > py {
-            Lang::Rust
-        } else {
-            Lang::Python
-        }
+        let counts = [
+            (Lang::Python, source_files(&args.path, "py").len()),
+            (Lang::Rust, source_files(&args.path, "rs").len()),
+            (Lang::Cpp, cpp_files(&args.path).len()),
+            (Lang::Ts, ts_files(&args.path).len()),
+        ];
+        // most files wins; Python breaks ties (the original default).
+        counts.iter().filter(|(_, n)| *n > 0).max_by_key(|(_, n)| *n).map(|(l, _)| *l).unwrap_or(Lang::Python)
     });
 
     let paths = match lang {
         Lang::Python => source_files(&args.path, "py"),
         Lang::Rust => source_files(&args.path, "rs"),
         Lang::Cpp => cpp_files(&args.path),
+        Lang::Ts => ts_files(&args.path),
     };
     let mut sources: Vec<(String, String)> = Vec::new();
     for p in &paths {
@@ -127,6 +128,7 @@ fn main() -> ExitCode {
         Lang::Python => python::analyze_project(&refs, &weights),
         Lang::Rust => rust::analyze_project(&refs, &weights),
         Lang::Cpp => cpp::analyze_project(&refs, &weights),
+        Lang::Ts => ts::analyze_project(&refs, &weights),
     };
     print!("{}", render(&findings, args.view, args.format));
 

@@ -258,6 +258,44 @@ Like Rust: a clean native AST, so the hacks are all "no type info → approximat
 
 ---
 
+## 7b. TypeScript / JavaScript frontend (`oxc`, `src/lang/ts/lower.rs`)
+
+### 7b.1 An arrow/function/class assigned to a name becomes a NAMED definition
+- **What:** `const Foo = () => …` / `= function …` / `= class …` is lowered as a `Decl` named `Foo`
+  with a scope named `Foo` (not an anonymous `<arrow>`). Same for a class-field arrow (`onClick =
+  () => …` → a method).
+- **Why:** it is the dominant JS/React shape (components, hooks, handlers). Without it, nearly all
+  real-world debt piles onto one anonymous `<arrow>` bucket and the per-entity attribution is useless
+  (dogfooding takenote: the top offender went from `<arrow>` 9160 to real component names).
+- **Remove:** nothing to remove — this IS the right model; a truly anonymous arrow (a `.map(x => …)`
+  callback) still opens an `<arrow>` scope, and its references are attributed to the enclosing named
+  definition by the core's `attribution_scope`.
+
+### 7b.2 React hook results are pinned by a `use*` name heuristic
+- **What:** a declarator whose initializer is a call to `useFoo(…)` / `X.useFoo(…)` binds its names
+  as `intro` (positionally fixed — no levels, no wedges, no reorder), like a loop-carried seed.
+- **Why:** the rules of hooks REQUIRE hooks at the top of a component, unconditionally — they cannot
+  move down, so flagging `const [x] = useState()` for `ReorderBinding` is a guaranteed false alarm
+  (dogfooding takenote: hook pinning cut total debt 8710 → 3710, all of it false positives).
+- **Risk:** a non-hook function named `useThing()` is also pinned (rare; the `use` + capital
+  convention is near-universal). A hook NOT named `use*` (unusual) is missed.
+- **Remove:** real binding-level dataflow would be needed to know a value is rules-of-hooks-pinned;
+  the name convention is the cheap, reliable proxy React itself relies on (eslint-plugin-react-hooks).
+
+### 7b.3 `this.x` is a member reference; `a.b` drops the property
+- **What:** `this.x` / `this.x()` emit a member use resolved in the class scope; any other `a.b`
+  recurses only the base (like Rust/Python). Optional chaining (`a?.b`) is unwrapped first.
+- **Why:** members of another object aren't local entities; only own-class members are. Matches the
+  cross-frontend member rule.
+
+### 7b.4 Types are excluded; `var` treated as block-scoped
+- **What:** TS type aliases / interfaces / `enum` / annotations / generics are not lowered (no runtime
+  locality). `var` is lowered like `let`/`const` (block-scoped), not hoisted to the function.
+- **Why:** annotations are excluded by the references model (§8.4); function-scoped `var` is rare in
+  modern TS and treating it as block-local at worst slightly over-narrows a legacy `var`.
+
+---
+
 ## 8. Shared static-analysis approximations (all frontends)
 
 These are the same across C++/Rust/Python. The first two are real under-reporting; the rest are

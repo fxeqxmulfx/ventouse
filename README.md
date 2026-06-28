@@ -6,8 +6,8 @@ it** (reorder this binding, extract this helper, bundle these accumulators). The
 the way a human reviewer reads it.
 
 > Status: locality-only, one graph (the scope graph). Language-agnostic core with direct unit tests
-> at **100% coverage**. **Python (`ruff`), Rust (`syn`) and C++ (`libclang`) frontends are done**;
-> JS/TS (`oxc`) is planned ([todo.md](todo.md)).
+> at **100% coverage**. **Python (`ruff`), Rust (`syn`), C++ (`libclang`) and TS/JS (`oxc`, incl.
+> JSX/React) frontends are done** ([todo.md](todo.md)).
 
 ## The problem
 
@@ -102,7 +102,7 @@ the reference graph, the entity list, declare-order). Only the *surface* differs
 | Python | `ruff_python_parser` | done |
 | Rust | `syn` | done |
 | C++ | `libclang` | done |
-| JavaScript / TypeScript | `oxc` | planned |
+| JavaScript / TypeScript | `oxc` | done (incl. JSX) |
 
 In block-scoped languages (Rust, JS `let`/`const`, C++) `levels` narrows the **real** runtime scope,
 so it bites harder than in function-scoped Python. Dogfooding ventouse on its own source — and on
@@ -145,18 +145,23 @@ cargo run --release -- src --top=10 --by=function
   flags, run from a build dir that has a **`compile_commands.json`** (CMake: `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`);
   ventouse reads it automatically. Without it the parse is best-effort. See [HACKS.md](HACKS.md) for
   the libclang specifics.
+- **TS/JS** — works out of the box (`.ts`/`.tsx`/`.js`/`.jsx`, via `oxc`; `.d.ts` skipped). `.tsx`/
+  `.jsx` enable JSX, so component references and `{ … }` containers in returned markup feed the graph.
+  An arrow assigned to a name (`const App = () => …`) is treated as a named definition; React hook
+  results (`useState`, `useSelector`, …) are positionally pinned (rules of hooks), so they aren't
+  flagged for reorder.
 
 ## CLI
 
 ```
-ventouse [PATH] [--lang=python|rust|cpp] [--order=bottom-up|top-down] \
+ventouse [PATH] [--lang=python|rust|cpp|ts] [--order=bottom-up|top-down] \
        [--format=text|json] [--summary | --all | --top=N --by=function|class|file] [--error]
 ```
 
 | Flag | Meaning |
 |------|---------|
 | `PATH` | file or directory to analyze (default `.`) |
-| `--lang=python\|rust\|cpp` | force a frontend (default: auto-detect by file count) |
+| `--lang=python\|rust\|cpp\|ts` | force a frontend (default: auto-detect by file count) |
 | `--order=bottom-up\|top-down` | declare-order convention (default `bottom-up`; see [above](#the-one-opinionated-axis)) |
 | `--format=text\|json` | output format (default `text`) |
 | `--summary` | headline total + per-file rollup (**default**) |

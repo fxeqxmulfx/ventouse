@@ -57,3 +57,19 @@ pub fn cpp_files(root: &str) -> Vec<String> {
     files.dedup();
     files
 }
+
+/// TypeScript / JavaScript extensions (`.tsx`/`.jsx` carry JSX; `.ts`/`.js` plain).
+pub const TS_EXTS: &[&str] = &["ts", "tsx", "js", "jsx", "mts", "cts", "mjs", "cjs"];
+
+/// Collect TS/JS files across all [`TS_EXTS`], de-duplicated and sorted (see [`source_files`]).
+/// Declaration files (`.d.ts`) are types-only — excluded.
+pub fn ts_files(root: &str) -> Vec<String> {
+    let mut files: Vec<String> = TS_EXTS
+        .iter()
+        .flat_map(|ext| source_files(root, ext))
+        .filter(|f| !f.ends_with(".d.ts"))
+        .collect();
+    files.sort();
+    files.dedup();
+    files
+}
